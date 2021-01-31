@@ -6,10 +6,22 @@ if [[ ! -f "./amplify/.config/project-config.json" ]]; then
 fi
 
 PROJECT_NAME=$(cat ./amplify/.config/project-config.json | jq -r '.projectName')
+if [ -z "$PROJECT_NAME" ]; then
+    echo 'Unable to find PROJECT NAME'
+    exit 1
+fi
 echo "Project Name: ${PROJECT_NAME}"
 S3_BUCKET=$(aws resourcegroupstaggingapi get-resources --tag-filters Key=user:Application,Values="${PROJECT_NAME}" --resource-type-filters s3 --query 'ResourceTagMappingList[*].[ResourceARN]' --output text | grep -v deployment | awk -F':::' '{print $2}')
+if [ -z "$S3_BUCKET" ]; then
+    echo 'Unable to find S3 BUCKET'
+    exit 1
+fi
 echo "Bucket Name: ${S3_BUCKET}"
 DYNAMO_TABLE=$(aws resourcegroupstaggingapi get-resources --tag-filters Key=user:Application,Values="${PROJECT_NAME}" --resource-type-filters dynamodb --query 'ResourceTagMappingList[*].[ResourceARN]' --output text | cut -f2- -d/)
+if [ -z "$DYNAMO_TABLE" ]; then
+    echo 'Unable to find DYNAMO TABLE'
+    exit 1
+fi
 echo "DynamoDb Table: ${DYNAMO_TABLE}"
 
 echo "Creating Layer"
@@ -22,6 +34,10 @@ sam deploy --template-file out.yaml --capabilities CAPABILITY_IAM --stack-name "
 rm package.zip
 
 LAMBDA_ARN=$(aws cloudformation describe-stacks --stack-name "${PROJECT_NAME}Lambda" --query "Stacks[0].Outputs[?OutputKey=='PdfToCsvArn'].OutputValue" --output text)
+if [ -z "$LAMBDA_ARN" ]; then
+    echo 'Unable to find LAMBDA ARN'
+    exit 1
+fi
 echo "Lambda: ${LAMBDA_ARN}"
 
 sed "s|%LambdaArn%|$LAMBDA_ARN|g" notification.json > notification.s3
